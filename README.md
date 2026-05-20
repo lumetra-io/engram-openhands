@@ -23,18 +23,20 @@ nothing to publish. Clone, copy two files, restart OpenHands.
 
 ## Install
 
+> ### Two install paths — pick the one that matches how you use OpenHands
+>
+> OpenHands 1.x reads MCP settings from **`settings.json`** at runtime, NOT from `config.toml`. The `config.toml` shape still works because OpenHands' **UI** ("Settings → MCP") merges your toml into `settings.json` on first save — but a fresh container with a mounted `config.toml` and no UI step will silently ignore the file (the server logs `config.toml not found`, and `settings.json` stays at defaults). Verified end-to-end in our 2026-05-20 e2e smoke against `docker.openhands.dev/openhands/openhands:1.7`.
+>
+> - **Path A (UI / interactive)** — mount `config.toml`, then open the UI once so OpenHands writes the merged settings to disk. Easiest if you're going to use the app anyway. The toml below is what to mount.
+> - **Path B (headless / CI / scripted)** — skip `config.toml` entirely and `POST /api/v1/settings` with the diff payload below. This is the only path that works without a human click.
+
 ```bash
 git clone https://github.com/lumetra-io/engram-openhands.git
 cd engram-openhands
 
-# 1. Drop the MCP config where OpenHands will read it.
-mkdir -p ~/.openhands
-cp config.example.toml ~/.openhands/config.toml
-# Then open it and replace REPLACE_WITH_YOUR_ENGRAM_KEY with your real key.
-
-# 2. Drop the microagent into the project you want Engram-aware.
-#    (Both locations work; the .agents path is the current recommendation,
-#    microagents/ is the legacy path and still supported.)
+# Drop the microagent into the project you want Engram-aware.
+# Both locations work; the .agents path is the current recommendation,
+# microagents/ is the legacy path and still supported.
 mkdir -p /path/to/your/project/.agents/skills
 cp -r .agents/skills/engram-memory /path/to/your/project/.agents/skills/
 # OR
@@ -42,10 +44,15 @@ mkdir -p /path/to/your/project/microagents
 cp microagents/engram-memory.md /path/to/your/project/microagents/
 ```
 
-## Run OpenHands
+## Path A — UI install via `config.toml`
 
-The canonical launch command from the OpenHands docs, with our config mount
-added:
+```bash
+mkdir -p ~/.openhands
+cp config.example.toml ~/.openhands/config.toml
+# Then open it and replace REPLACE_WITH_YOUR_ENGRAM_KEY with your real key.
+```
+
+Launch OpenHands (mounts `~/.openhands` into the container):
 
 ```bash
 docker pull docker.openhands.dev/openhands/openhands:1.7
@@ -62,13 +69,41 @@ docker run -it --rm --pull=always \
   docker.openhands.dev/openhands/openhands:1.7
 ```
 
-Then open <http://localhost:3000>, pick your LLM provider on first launch,
-and start a conversation. Confirm Engram is wired in:
+Open <http://localhost:3000> → pick your LLM provider → visit **Settings → MCP** at least once (this triggers the toml→settings.json merge) → start a conversation. Confirm Engram is wired in by asking: *"List the available Engram buckets."* The agent should call `list_buckets`.
 
-- Open **Settings -> MCP**. You should see `https://mcp.lumetra.io/mcp/sse`
-  listed under SSE servers.
-- In a new conversation, ask: *"List the available Engram buckets."* The
-  agent should call `list_buckets` and return the response.
+## Path B — headless install via the settings API
+
+Skip mounting any config. Boot the container the same way (you can drop the `-v ~/.openhands:/.openhands` flag) and POST the settings diff once OpenHands is healthy:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/settings \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "agent_settings_diff": {
+      "llm": {
+        "model": "anthropic/claude-sonnet-4-5",
+        "api_key": "sk-ant-..."
+      },
+      "mcp_config": {
+        "mcpServers": {
+          "engram": {
+            "url": "https://mcp.lumetra.io/mcp/sse",
+            "transport": "sse",
+            "auth": "eng_live_..."
+          }
+        }
+      }
+    }
+  }'
+```
+
+A few gotchas the e2e caught:
+
+- The endpoint **requires the diff shape** — `agent_settings_diff`, not `agent_settings`. A naive flat payload is rejected with `"Use *_diff nested settings payloads instead of legacy keys"`.
+- `mcp_config.mcpServers.engram.auth` takes the bearer token **as a bare string** (fastmcp's `RemoteMCPServer.auth` field). It is NOT `{"Authorization": "Bearer …"}` like in most other MCP clients. Just `"auth": "eng_live_..."`.
+- The legacy `sse_servers = [{ url, api_key }]` toml shape (from older OpenHands releases) uses `api_key`. The new settings.json shape uses `auth`. Both are the same string value, just named differently.
+
+After the POST, kick off a conversation via `POST /api/v1/app-conversations` (see the OpenHands API docs) and watch the event stream for `tool_name: engram_*` calls.
 
 ## How the pieces fit together
 
