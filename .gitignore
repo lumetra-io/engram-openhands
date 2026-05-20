@@ -1,0 +1,23 @@
+# Local OpenHands state
+.openhands/
+openhands-state/
+
+# Editor + OS
+.vscode/
+.idea/
+.DS_Store
+
+# Python (if anyone vendors helpers here)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local secrets
+.env
+.env.local
+*.local.toml
+
+# Smoke test artifacts
+smoke.log
+container-logs.txt

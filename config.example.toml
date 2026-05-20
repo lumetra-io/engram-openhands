@@ -1,0 +1,20 @@
+# OpenHands configuration with Engram memory wired in.
+#
+# Drop this at ~/.openhands/config.toml on the host before launching the
+# Docker container (or use the dedicated -v mount shown in the README).
+#
+# Engram MCP server: SSE transport at https://mcp.lumetra.io/mcp/sse
+# Auth: the OpenHands SSE client sends `api_key` as a Bearer token in the
+# Authorization header, which is exactly what mcp.lumetra.io expects.
+
+[mcp]
+sse_servers = [
+    { url = "https://mcp.lumetra.io/mcp/sse", api_key = "REPLACE_WITH_YOUR_ENGRAM_KEY" },
+]
+
+# Optional: also wire Engram as an SHTTP server if you prefer the newer
+# streamable HTTP transport. Pick one; do not register both.
+#
+# shttp_servers = [
+#     { url = "https://mcp.lumetra.io/mcp", api_key = "REPLACE_WITH_YOUR_ENGRAM_KEY", timeout = 120 },
+# ]
