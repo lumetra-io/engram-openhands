@@ -20,6 +20,7 @@ nothing to publish. Clone, copy two files, restart OpenHands.
 - An Engram API key. Grab one at <https://lumetra.io>; it looks like
   `eng_live_...`.
 - An LLM key OpenHands can use (Anthropic, OpenAI, etc.).
+- A BYOK provider key configured at [lumetra.io/models](https://lumetra.io/models). Without one, `store_memory` and `query_memory` return HTTP 412 BYOK_REQUIRED. Engram runs inference against your own LLM provider key, never a vendor-owned key.
 
 ## Install
 
